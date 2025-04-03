@@ -3,8 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 /dataset
+/data
 dataset.7z
 *.code-workspace
+*.pth 
 
 # C extensions
 *.so
