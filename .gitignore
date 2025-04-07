@@ -3,6 +3,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 /dataset
+/dataset_
 /data
 dataset.7z
 *.code-workspace
