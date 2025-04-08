@@ -11,7 +11,7 @@ import logging
 
 logging.basicConfig(level=logging.INFO, format='%(message)s - %(asctime)s - %(levelname)s')
 
-IMAGE_SIZE = 256
+IMAGE_SIZE = 32
 
 transform = transforms.Compose([
     transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
@@ -20,9 +20,12 @@ transform = transforms.Compose([
 ])
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-NUM_EPOCHS = 500
-BATCH_SIZE = 64
+# NUM_EPOCHS = 500
+# BATCH_SIZE = 64
 LR = 0.001
+
+NUM_EPOCHS = 150
+BATCH_SIZE = 55
 
 print(f"Using device: {DEVICE}")
 
@@ -37,86 +40,134 @@ class CustomDataset(Dataset):
 
     def __getitem__(self, idx):
         img_path = os.path.join(self.root_dir, self.image_files[idx])
-        image = Image.open(img_path).convert('L')
+        image = Image.open(img_path).convert('RGB')
         if self.transform:
             image = self.transform(image)
         return image, 0  # Dummy label (not used in VAE)
 
-# class Encoder(nn.Module):
-#     def __init__(self):
-#         super().__init__()
-#         self.conv1 = nn.Conv2d(1, 32, kernel_size=3, stride=1, padding=1)
-#         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
-#         self.fc1 = nn.Linear(28 * 28 * 64, 256)
-#         self.fc_mu = nn.Linear(256, 128)
-#         self.fc_logvar = nn.Linear(256, 128)
+class Encoder(nn.Module):
+    def __init__(self, hidden_dim=256, latent_dim=128):
+        super().__init__()
+        self.conv1 = nn.Conv2d(3, 6, kernel_size=3, stride=2, padding=1)
+        # self.pool = nn.MaxPool2d(2, 2)
+        self.conv2 = nn.Conv2d(6, 16, kernel_size=3, stride=2, padding=1)
+        # self.conv2 = nn.Conv3d(32-2, 64-1, kernel_size=3, stride=2, padding=1, groups=3)
+        self.fc1 = nn.Linear((IMAGE_SIZE//2)//2*(IMAGE_SIZE//2)//2 * (16), hidden_dim)
+        # self.fc1 = nn.Linear(IMAGE_SIZE * IMAGE_SIZE * (64-1), hidden_dim)
+        self.fc_mu = nn.Linear(hidden_dim, latent_dim)
+        self.fc_logvar = nn.Linear(hidden_dim, latent_dim)
 
-#     def forward(self, x):
-#         x = torch.relu(self.conv1(x))
-#         x = torch.relu(self.conv2(x))
-#         x = x.view(x.size(0), -1)
-#         x = torch.relu(self.fc1(x))
-#         return self.fc_mu(x), self.fc_logvar(x)
+    def forward(self, x):
+        # x = self.pool(torch.relu(self.conv1(x)))
+        # x = self.pool(torch.relu(self.conv2(x)))
+        x = torch.relu(self.conv1(x))
+        x = torch.relu(self.conv2(x))
+        x = torch.flatten(x, 1) #.view(x.size(0), -1)
+        x = torch.relu(self.fc1(x))
+        return self.fc_mu(x), self.fc_logvar(x)
 
-# class Decoder(nn.Module):
-#     def __init__(self):
-#         super().__init__()
-#         self.fc1 = nn.Linear(128, 256)
-#         self.fc2 = nn.Linear(256, 28 * 28 * 64)
-#         self.conv1 = nn.ConvTranspose2d(64, 32, kernel_size=3, stride=1, padding=1)
-#         self.conv2 = nn.ConvTranspose2d(32, 1, kernel_size=3, stride=1, padding=1)
+class Decoder(nn.Module):
+    def __init__(self, hidden_dim=256, latent_dim=128):
+        super().__init__()
+        self.fc1 = nn.Linear(latent_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, (IMAGE_SIZE//2)//2*(IMAGE_SIZE//2)//2 * (16))
+        # self.conv1 = nn.ConvTranspose3d(64-1, 32-2, kernel_size=3, stride=1, padding=1, groups=3)
+        # self.conv2 = nn.ConvTranspose3d(32-2, 1+2, kernel_size=3, stride=1, padding=1, groups=3)
+        self.conv1 = nn.ConvTranspose2d(16, 6, kernel_size=3, stride=2, padding=1, output_padding=1)
+        self.conv2 = nn.ConvTranspose2d(6, 3, kernel_size=3, stride=2, padding=1, output_padding=1)
 
-#     def forward(self, z):
-#         z = torch.relu(self.fc1(z))
-#         z = torch.relu(self.fc2(z))
-#         z = z.view(-1, 64, 28, 28)
-#         z = torch.relu(self.conv1(z))
-#         return torch.sigmoid(self.conv2(z))
+    def forward(self, z):
+        z = torch.relu(self.fc1(z))
+        z = torch.relu(self.fc2(z))
+        z = z.view(-1, 16, ((IMAGE_SIZE//2)//2), ((IMAGE_SIZE//2)//2))
+        z = torch.relu(self.conv1(z))
+        out = torch.sigmoid(self.conv2(z))
+        # print("===========", out.shape)
+        return out
 
-
-class VAE(nn.Module):
+class ConvVAE(nn.Module):
     def __init__(self, input_size, hidden_dim=256, latent_dim=128):
-        super(VAE, self).__init__()
+        super(ConvVAE, self).__init__()
+        self.encoder = Encoder(hidden_dim, latent_dim)
+        self.decoder = Decoder(hidden_dim, latent_dim)
         self.input_size = input_size
+        # Init xavier:
+        for m in self.modules():
+            if isinstance(m, nn.Conv3d) or isinstance(m, nn.ConvTranspose3d) or isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight.data, gain=1.0)
 
-        self.fc1 = nn.Linear(input_size*input_size, hidden_dim)
-        self.fc21 = nn.Linear(hidden_dim, latent_dim)
-        self.fc22 = nn.Linear(hidden_dim, latent_dim)
-
-        self.fc3 = nn.Linear(latent_dim, hidden_dim)
-        self.fc4 = nn.Linear(hidden_dim, input_size*input_size)
-
+ 
     def encode(self, x):
-        h1 = F.relu(self.fc1(x))
-        return self.fc21(h1), self.fc22(h1)
-
+        return self.encoder(x)#.view(-1, 3, 1, self.input_size, self.input_size))
+    
     def reparameterize(self, mu, logvar):
         std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
         return mu + eps * std
 
-    def decode(self, z):
-        z = F.relu(self.fc3(z))
-        return torch.sigmoid(self.fc4(z))  
+    def decode(self, x):
+        return self.decoder(x)
 
     def forward(self, x):
-        mu, logvar = self.encode(x.view(-1, self.input_size*self.input_size))
+        mu, logvar = self.encode(x)
         z = self.reparameterize(mu, logvar)
         return self.decode(z), mu, logvar
 
+
+# class VAE(nn.Module):
+#     def __init__(self, input_size, hidden_dim=256, latent_dim=128):
+#         super(VAE, self).__init__()
+#         self.input_size = input_size
+
+#         self.fc1 = nn.Linear(input_size*input_size, hidden_dim)
+#         self.fc21 = nn.Linear(hidden_dim, latent_dim)
+#         self.fc22 = nn.Linear(hidden_dim, latent_dim)
+
+#         self.fc3 = nn.Linear(latent_dim, hidden_dim)
+#         self.fc4 = nn.Linear(hidden_dim, input_size*input_size)
+
+#     def encode(self, x):
+#         h1 = F.relu(self.fc1(x))
+#         return self.fc21(h1), self.fc22(h1)
+
+#     def reparameterize(self, mu, logvar):
+#         std = torch.exp(0.5 * logvar)
+#         eps = torch.randn_like(std)
+#         return mu + eps * std
+
+#     def decode(self, z):
+#         z = F.relu(self.fc3(z))
+#         return torch.sigmoid(self.fc4(z))  
+
+#     def forward(self, x):
+#         mu, logvar = self.encode(x.view(-1, self.input_size*self.input_size))
+#         z = self.reparameterize(mu, logvar)
+#         return self.decode(z), mu, logvar
+
+
+VAE_Class = ConvVAE
+
+
+
 def vae_loss(recon_x, x, mu, logvar):
-    BCE = F.binary_cross_entropy(recon_x, x.view(-1, IMAGE_SIZE*IMAGE_SIZE), reduction='sum')
-    KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+    # print("---", IMAGE_SIZE)
+    # print("===== recon_x", recon_x.shape)
+    # print("===== x", x.shape)
+    BCE = F.binary_cross_entropy(recon_x, x.view(-1, 3, IMAGE_SIZE, IMAGE_SIZE), reduction='sum')
+    # KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
+    KLD = 0
     return BCE + KLD
 
 def train(train_loader, valid_loader, save_path):
-    model = VAE(input_size=IMAGE_SIZE).to(DEVICE)
+    # model = VAE(input_size=IMAGE_SIZE).to(DEVICE)
+    model = VAE_Class(input_size=IMAGE_SIZE).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=1e-5)
 
     for epoch in range(NUM_EPOCHS):
         model.train()
         train_loss = 0
         for data, _ in train_loader:
+            # print(data.shape) # BATCH, COLOR, SIZE, SIZE
             data = data.to(DEVICE)
             optimizer.zero_grad()
             recon_batch, mu, logvar = model(data)
@@ -148,19 +199,22 @@ def train(train_loader, valid_loader, save_path):
         num_images = 8
         fig, axs = plt.subplots(2, 8, figsize=(12, 3))
 
+        # print("===========", data.shape)
+        # print("==--------=========", recon_batch.shape)
+        # print("===========++", data[0, :].shape)
         for i in range(num_images):
-            axs[0, i].imshow(data[i].cpu().squeeze(), cmap='gray')
+            axs[0, i].imshow(data[i, :].cpu().squeeze().permute(1, 2, 0))
             axs[0, i].set_title("Original")
             axs[0, i].axis("off")
 
-            axs[1, i].imshow(recon_batch[i].view(IMAGE_SIZE, IMAGE_SIZE).cpu(), cmap='gray')
+            axs[1, i].imshow(recon_batch[i, :].cpu().permute(1, 2, 0))
             axs[1, i].set_title("Reconstructed")
             axs[1, i].axis("off")
 
     plt.show()
 
 def test_model(model_path, image_path):
-    model = VAE(256).to(DEVICE)
+    model = VAE_Class(256).to(DEVICE)
     model.load_state_dict(torch.load(model_path))
     model.eval()
 
@@ -173,9 +227,9 @@ def test_model(model_path, image_path):
         recon_image = model.decode(latent_vector).cpu().squeeze().numpy()
     
     fig, axes = plt.subplots(1, 2, figsize=(8, 4))
-    axes[0].imshow(image.cpu().squeeze().numpy(), cmap='gray')
+    axes[0].imshow(image.cpu().numpy().squeeze().permute(1, 2, 0))
     axes[0].set_title('Original')
-    axes[1].imshow(recon_image, cmap='gray')
+    axes[1].imshow(recon_image.permute(1, 2, 0))
     axes[1].set_title('Reconstructed')
     plt.show()
 
