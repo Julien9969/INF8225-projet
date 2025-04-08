@@ -53,15 +53,17 @@
 
 #     category_mapping = parse_category_mapping(CATEGORY_MAPPING)
     
-#     dog_categories = filter_categories(category_mapping, "dog")
-#     pizza_categories = filter_categories(category_mapping, "pizza")
+    # dog_categories = filter_categories(category_mapping, "dog")
+    # dog_categories.remove("n03218198")
+    # dog_categories.remove("n07697537")
+    # pizza_categories = filter_categories(category_mapping, "pizza")
     
 #     print(f"Dog categories: {len(dog_categories)}")
 #     print(f"Pizza categories: {len(pizza_categories)}")
 
-#     for category in dog_categories:
-#         print(f"Dog category: {category} - {category_mapping[category]}")
-#         get_images(category, os.path.join(out_dir, 'dogs'), limit=82, shuffle=True)
+    # for category in dog_categories:
+    #     print(f"Dog category: {category} - {category_mapping[category]}")
+    #     get_images(category, os.path.join(out_dir, 'dogs'), limit=93, shuffle=True)
 
 #     # # for category in pizza_categories:
 #     # #     get_images(category, os.path.join(out_dir, 'pizza'))
