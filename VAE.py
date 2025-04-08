@@ -27,6 +27,18 @@ LR = 0.001
 NUM_EPOCHS = 150
 BATCH_SIZE = 55
 
+HIDDEN_DIM = 256
+LATENT_DIM = 128
+# HIDDEN_DIM = 514
+# LATENT_DIM = 256
+
+
+# CONV_N_FILTERS_1 = 6 # multiple de 3 idealement?
+# CONV_N_FILTERS_2 = 16 #
+CONV_N_FILTERS_1 = 6 # multiple de 3 idealement?
+CONV_N_FILTERS_2 = 16 #
+
+
 print(f"Using device: {DEVICE}")
 
 class CustomDataset(Dataset):
@@ -48,11 +60,11 @@ class CustomDataset(Dataset):
 class Encoder(nn.Module):
     def __init__(self, hidden_dim=256, latent_dim=128):
         super().__init__()
-        self.conv1 = nn.Conv2d(3, 6, kernel_size=3, stride=2, padding=1)
+        self.conv1 = nn.Conv2d(3, CONV_N_FILTERS_1, kernel_size=3, stride=2, padding=1)
         # self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(6, 16, kernel_size=3, stride=2, padding=1)
+        self.conv2 = nn.Conv2d(CONV_N_FILTERS_1, CONV_N_FILTERS_2, kernel_size=3, stride=2, padding=1)
         # self.conv2 = nn.Conv3d(32-2, 64-1, kernel_size=3, stride=2, padding=1, groups=3)
-        self.fc1 = nn.Linear((IMAGE_SIZE//2)//2*(IMAGE_SIZE//2)//2 * (16), hidden_dim)
+        self.fc1 = nn.Linear((IMAGE_SIZE//2)//2*(IMAGE_SIZE//2)//2 * (CONV_N_FILTERS_2), hidden_dim)
         # self.fc1 = nn.Linear(IMAGE_SIZE * IMAGE_SIZE * (64-1), hidden_dim)
         self.fc_mu = nn.Linear(hidden_dim, latent_dim)
         self.fc_logvar = nn.Linear(hidden_dim, latent_dim)
@@ -70,16 +82,16 @@ class Decoder(nn.Module):
     def __init__(self, hidden_dim=256, latent_dim=128):
         super().__init__()
         self.fc1 = nn.Linear(latent_dim, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, (IMAGE_SIZE//2)//2*(IMAGE_SIZE//2)//2 * (16))
+        self.fc2 = nn.Linear(hidden_dim, (IMAGE_SIZE//2)//2*(IMAGE_SIZE//2)//2 * (CONV_N_FILTERS_2))
         # self.conv1 = nn.ConvTranspose3d(64-1, 32-2, kernel_size=3, stride=1, padding=1, groups=3)
         # self.conv2 = nn.ConvTranspose3d(32-2, 1+2, kernel_size=3, stride=1, padding=1, groups=3)
-        self.conv1 = nn.ConvTranspose2d(16, 6, kernel_size=3, stride=2, padding=1, output_padding=1)
-        self.conv2 = nn.ConvTranspose2d(6, 3, kernel_size=3, stride=2, padding=1, output_padding=1)
+        self.conv1 = nn.ConvTranspose2d(CONV_N_FILTERS_2, CONV_N_FILTERS_1, kernel_size=3, stride=2, padding=1, output_padding=1)
+        self.conv2 = nn.ConvTranspose2d(CONV_N_FILTERS_1, 3, kernel_size=3, stride=2, padding=1, output_padding=1)
 
     def forward(self, z):
         z = torch.relu(self.fc1(z))
         z = torch.relu(self.fc2(z))
-        z = z.view(-1, 16, ((IMAGE_SIZE//2)//2), ((IMAGE_SIZE//2)//2))
+        z = z.view(-1, CONV_N_FILTERS_2, ((IMAGE_SIZE//2)//2), ((IMAGE_SIZE//2)//2))
         z = torch.relu(self.conv1(z))
         out = torch.sigmoid(self.conv2(z))
         # print("===========", out.shape)
@@ -160,7 +172,7 @@ def vae_loss(recon_x, x, mu, logvar):
 
 def train(train_loader, valid_loader, save_path):
     # model = VAE(input_size=IMAGE_SIZE).to(DEVICE)
-    model = VAE_Class(input_size=IMAGE_SIZE).to(DEVICE)
+    model = VAE_Class(input_size=IMAGE_SIZE, hidden_dim=HIDDEN_DIM, latent_dim=LATENT_DIM).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=1e-5)
 
     for epoch in range(NUM_EPOCHS):
