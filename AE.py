@@ -118,6 +118,14 @@ def autoencoder_loss(x, recon_x, residual):
     residual_loss = F.mse_loss(residual, torch.zeros_like(residual))
     return recon_loss + residual_loss
 
+def measure_compression(model, data_loader):
+    data_point = data_loader.dataset[0][0].unsqueeze(0).to(DEVICE)
+    with torch.no_grad():
+        logging.info(f"DATA SIZE: {data_point.shape}")
+        encoded = model.encoder(data_point)
+        logging.info(f"ENCODED SIZE: {encoded.shape}")
+        compression_ratio = data_point.numel() / encoded.numel()
+        logging.info(f"Facteur de compression: {compression_ratio:.2f}")
 
 def train(train_loader, valid_loader, save_path, usesWandb=False):
     model = Autoencoder().to(DEVICE)
@@ -144,6 +152,7 @@ def train(train_loader, valid_loader, save_path, usesWandb=False):
     for epoch in range(NUM_EPOCHS):
         model.train()
         train_loss = 0
+        measure_compression(model, train_loader)
         with tqdm.tqdm(train_loader, desc=f"Epoch {epoch+1}/{NUM_EPOCHS}", unit="batch", position=0, leave=False, ncols=100) as t_loader:
             for data, _ in t_loader:
                 data = data.to(DEVICE)
