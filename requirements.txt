@@ -5,3 +5,5 @@ pillow
 torch
 torchvision
 wandb
+scikit-image
+rich
