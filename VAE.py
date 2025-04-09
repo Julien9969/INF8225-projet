@@ -170,10 +170,20 @@ def vae_loss(recon_x, x, mu, logvar):
     KLD = 0
     return BCE + KLD
 
+def measure_compression(model, data_loader):
+    data_point = data_loader.dataset[0][0].unsqueeze(0).to(DEVICE)
+    with torch.no_grad():
+        print(f"DATA SIZE: {data_point.shape}")
+        encoded, _ = model.encoder(data_point)
+        print(f"ENCODED SIZE: {encoded.shape}")
+        compression_ratio = data_point.numel() / encoded.numel()
+        print(f"Facteur de compression: {compression_ratio:.2f}")
+
 def train(train_loader, valid_loader, save_path):
     # model = VAE(input_size=IMAGE_SIZE).to(DEVICE)
     model = VAE_Class(input_size=IMAGE_SIZE, hidden_dim=HIDDEN_DIM, latent_dim=LATENT_DIM).to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=LR, weight_decay=1e-5)
+    measure_compression(model, train_loader)
 
     for epoch in range(NUM_EPOCHS):
         model.train()
