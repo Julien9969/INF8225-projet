@@ -119,13 +119,28 @@ def autoencoder_loss(x, recon_x, residual):
     return recon_loss + residual_loss
 
 
-def train(train_loader, valid_loader, save_path):
+def train(train_loader, valid_loader, save_path, usesWandb=False):
     model = Autoencoder().to(DEVICE)
     optimizer = optim.Adam(model.parameters(), lr=LR)
 
     # 10 epochs sans amélioration on diminue le learning rate
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=10)
-
+    if usesWandb:
+        import wandb
+        wandb.init(
+            entity="zevictos-polytechnique-montreal",
+            # Set the wandb project where this run will be logged.
+            project="Projet final",
+            # Track hyperparameters and run metadata.
+            config={
+                "learning_rate": 0.02,
+                "architecture": "Autoencoder",
+                "dataset": "dogs",
+                "epochs": NUM_EPOCHS,
+                "batch_size": BATCH_SIZE,
+                "image_size": IMAGE_SIZE,
+            },
+        )
     for epoch in range(NUM_EPOCHS):
         model.train()
         train_loss = 0
@@ -140,7 +155,20 @@ def train(train_loader, valid_loader, save_path):
                 loss.backward()
                 optimizer.step()
                 train_loss += loss.item()
+                   # Log batch loss to wandb (optional, can log per epoch instead)
+                if usesWandb:
+                    wandb.log({
+                        "epoch": epoch,
+                        "train_loss": loss.item(),
+                        # "running_train_loss": train_loss / (batch_idx + 1),
+                    })
         
+                    # Log average epoch loss
+                    avg_train_loss = train_loss / len(train_loader)
+                    wandb.log({
+                        "epoch": epoch,
+                        "train_loss": avg_train_loss,
+                    })
         scheduler.step(train_loss)
         
         val_loss = 0.0
@@ -220,7 +248,7 @@ if __name__ == "__main__":
     logging.info(f"Image size: {IMAGE_SIZE}")
     logging.info(f"Device: {DEVICE}")
         
-    train(train_loader, valid_loader, model_path)
+    train(train_loader, valid_loader, model_path, usesWandb=True)
 
     logging.info(f"Training completed in {(time.time() - start)//60:.2f} min")
     
