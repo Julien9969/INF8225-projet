@@ -11,7 +11,7 @@ import logging, time, tqdm, sys
 from skimage.metrics import structural_similarity as ssim
 from skimage.metrics import peak_signal_noise_ratio as psnr
 from rich.table import Table
-import rich
+import rich, os
 
 
 from AE import Autoencoder, CustomDataset, transform
@@ -23,6 +23,7 @@ logging.basicConfig(level=logging.INFO, format='%(levelname)s | %(message)s - %(
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 SHOW = False
+TEST_SAVE = False
 
 def load_model(model_path: str):
     model = Autoencoder()
@@ -38,23 +39,38 @@ def calculate_metrics(original, decoded):
     ssim_value = ssim(original_np, decoded_np, channel_axis=-1, data_range=1)
     return psnr_value, ssim_value
 
-def calculate_compression_ratio(original, encoded):
-    """Calculate the compression ratio."""
-    original_size = original.numel() * original.element_size()
-    compressed_size = encoded.numel() * encoded.element_size()
-    return original_size / compressed_size
+def input_vs_encoded(original_image, encoded):
+    buffer = BytesIO()
+    original_image.save(buffer, format="JPEG", quality=100)
+    ori_jpeg_size = buffer.tell()
 
-def calculate_jpeg_compression_ratio(original_tensor, jpeg_size_bytes):
-    original_size = original_tensor.numel() * original_tensor.element_size()
-    return original_size / jpeg_size_bytes
+    encoded_buffer = BytesIO()
+    encoded_buffer.write(encoded.cpu().numpy())
+    encoded_size = encoded_buffer.tell()
+    encoded_buffer.close()
+
+    return ori_jpeg_size, encoded_size, ori_jpeg_size / encoded_size
+
 
 def jpeg_compression(original_image, compression_ratio):
-    """Compress the original image using JPEG with a similar compression ratio."""
     buffer = BytesIO()
-    quality = max(1, min(95, int(100 / compression_ratio)))  # Estimate JPEG quality
+    quality = int(np.clip(95 - (compression_ratio - 1) * 10, 5, 95))
+
     original_image.save(buffer, format="JPEG", quality=quality)
-    jpeg_size = buffer.tell()
-    return jpeg_size, Image.open(buffer)
+    comp_jpeg_size = buffer.tell()
+
+    comp_jpeg_image = Image.open(buffer)
+    comp_jpeg_image.load()
+    buffer.close()
+
+    return comp_jpeg_size, comp_jpeg_image
+
+def convert_pil_to_tensor(image: Image.Image, device=None):
+    """
+    Convert a PIL image to a normalized torch tensor, ensuring RGB format.
+    """
+    tensor = transforms.ToTensor()(image.convert("RGB")).unsqueeze(0)
+    return tensor.to(device) if device else tensor
 
 def evaluate(model, dataloader):
     PSNR = []
@@ -75,51 +91,64 @@ def evaluate(model, dataloader):
                 PSNR.append(psnr_value)
                 SSIM.append(ssim_value)
 
-                compression_ratio = calculate_compression_ratio(inputs, encoded)
+                original_image = transforms.ToPILImage()(inputs[0].cpu())
+                
+                input_jpeg_size, encoded_size, compression_ratio = input_vs_encoded(original_image, encoded)
                 compression_ratios.append(compression_ratio)
 
-                original_image = transforms.ToPILImage()(inputs[0].cpu())
-                jpeg_size, jpeg_image = jpeg_compression(original_image, compression_ratio)
-                jpeg_tensor = transforms.ToTensor()(jpeg_image).unsqueeze(0).to(DEVICE)
-
+                comp_jpeg_size, comp_jpeg_image = jpeg_compression(original_image, compression_ratio)
+                jpeg_ratio = input_jpeg_size / comp_jpeg_size
+                jpeg_compression_ratios.append(jpeg_ratio)
+                
+                jpeg_tensor = convert_pil_to_tensor(comp_jpeg_image, device=DEVICE)
                 jpeg_psnr_value, jpeg_ssim_value = calculate_metrics(inputs[0], jpeg_tensor[0])
                 jpeg_PSNR.append(jpeg_psnr_value)
                 jpeg_SSIM.append(jpeg_ssim_value)
-                jpeg_ratio = calculate_jpeg_compression_ratio(inputs, jpeg_size)
-                jpeg_compression_ratios.append(jpeg_ratio)
-
 
                 logging.debug(f"JPEG PSNR: {jpeg_psnr_value}, JPEG SSIM: {jpeg_ssim_value}, JPEG Compression Ratio: {jpeg_compression_ratios[-1]}")
-                logging.debug(f"PSNR: {psnr_value}, SSIM: {ssim_value}, Compression Ratio: {compression_ratio}")
+                logging.debug(f"PSNR: {psnr_value}, SSIM: {ssim_value}, Compression Ratio: {encoded_size}")
 
+                if TEST_SAVE:
+                    if not os.path.exists("results"):
+                        os.makedirs("results")
+                    original_image.save(f"results/original.jpg")
+                    comp_jpeg_image.save(f"results/jpeg.jpg")
+                    with open("results/encoded", "wb") as f:
+                        f.write(encoded.cpu().numpy())
                 if SHOW:
-                    visualize_results(inputs[0], decoded[0])
+                    visualize_results(inputs[0], decoded[0], jpeg_tensor[0], comp_jpeg_size//1000, input_jpeg_size//1000, encoded_size//1000) 
 
     return PSNR, SSIM, compression_ratios, jpeg_PSNR, jpeg_SSIM, jpeg_compression_ratios
 
-def visualize_results(original, reconstructed):
-    """Visualize the original, reconstructed, and residual images."""
-    residual = (original - reconstructed).cpu().permute(1, 2, 0).clamp(0, 1)
-    original = original.cpu().permute(1, 2, 0)
-    reconstructed = reconstructed.cpu().permute(1, 2, 0)
+import matplotlib.pyplot as plt
 
-    fig, axs = plt.subplots(1, 3, figsize=(12, 4))
-    axs[0].imshow(original)
-    axs[0].set_title("Original")
-    axs[0].axis("off")
+def visualize_results(original, reconstructed, jpeg, comp_jpeg_size, input_jpeg_size, encoded_size):
+    original_np = original.cpu().permute(1, 2, 0).clamp(0, 1)
+    reconstructed_np = reconstructed.cpu().permute(1, 2, 0).clamp(0, 1)
+    residual_np = (original - reconstructed).cpu().permute(1, 2, 0).clamp(0, 1)
+    jpeg_np = jpeg.cpu().permute(1, 2, 0).clamp(0, 1)
 
-    axs[1].imshow(reconstructed)
-    axs[1].set_title("Reconstructed")
-    axs[1].axis("off")
+    titles = [
+        f"Original\n({input_jpeg_size:.1f} kB)",
+        f"Encoded \n({encoded_size:.1f} kB)",
+        f"",
+        f"JPEG\n({comp_jpeg_size:.1f} kB)"
+    ]
 
-    axs[2].imshow(residual)
-    axs[2].set_title("Residual")
-    axs[2].axis("off")
+    fig, axs = plt.subplots(1, 4, figsize=(14, 6))
+    images = [original_np, reconstructed_np, residual_np, jpeg_np]
 
+    for ax, img, title in zip(axs, images, titles):
+        ax.imshow(img)
+        ax.set_title(title)
+        ax.axis("off")
+
+    plt.tight_layout()
     plt.show()
 
+
 if __name__ == "__main__":
-    model_path = "train_models/AE_128_250.pth"
+    model_path = "train_models/AE_128_250_128.pth"
     model = load_model(model_path)
 
     validate_dir = "dataset/dogs/valid"
