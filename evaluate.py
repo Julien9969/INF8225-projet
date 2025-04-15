@@ -12,7 +12,7 @@ from skimage.metrics import structural_similarity as ssim
 from skimage.metrics import peak_signal_noise_ratio as psnr
 from rich.table import Table
 import rich, os
-
+from compressai.entropy_models import EntropyBottleneck
 
 from AE import Autoencoder, CustomDataset, transform
 from io import BytesIO
@@ -79,12 +79,14 @@ def evaluate(model, dataloader):
     jpeg_PSNR = []
     jpeg_SSIM = []
     jpeg_compression_ratios = []
+    entropy_bottleneck = EntropyBottleneck(64).to(DEVICE).eval()
 
     with torch.no_grad():        
         with tqdm.tqdm(dataloader, desc=f"Calcules métriques", unit="image", position=0, leave=False, ncols=100) as t_loader:
             for inputs, _ in t_loader:
                 inputs = inputs.to(DEVICE)
                 encoded = model.encoder(inputs)
+                encoded, likelihoods = entropy_bottleneck(encoded)
                 decoded = model.decoder(encoded)
 
                 psnr_value, ssim_value = calculate_metrics(inputs[0], decoded[0])
@@ -148,7 +150,7 @@ def visualize_results(original, reconstructed, jpeg, comp_jpeg_size, input_jpeg_
 
 
 if __name__ == "__main__":
-    model_path = "train_models/AE_128_250_128.pth"
+    model_path = sys.argv[1] 
     model = load_model(model_path)
 
     validate_dir = "dataset/dogs/valid"

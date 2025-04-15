@@ -10,6 +10,9 @@ import matplotlib.pyplot as plt
 import logging, time, tqdm, sys
 import argparse
 
+# https://interdigitalinc.github.io/CompressAI/_modules/compressai/losses/rate_distortion.html#RateDistortionLoss
+from compressai.losses import RateDistortionLoss
+from compressai.entropy_models import EntropyBottleneck
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s | %(message)s - %(asctime)s', datefmt='%H:%M:%S')
 
@@ -37,11 +40,7 @@ transform = transforms.Compose([
     transforms.ToTensor(),
 ])
 
-from pytorch_msssim import ms_ssim
-import math
 
-# https://interdigitalinc.github.io/CompressAI/_modules/compressai/losses/rate_distortion.html#RateDistortionLoss
-from compressai.losses import RateDistortionLoss
 class CustomDataset(Dataset):
     def __init__(self, root_dir, transform=None):
         self.root_dir = root_dir
@@ -94,7 +93,7 @@ class Encoder(nn.Module):
             nn.ReLU(inplace=True),
             nn.Conv2d(128, 256, 5, stride=2, padding=2),  # (B, 256, H/8, W/8)
             nn.ReLU(inplace=True),
-            nn.Conv2d(256, 128, 1), 
+            nn.Conv2d(256, 64, 1), 
         )     
 
     def forward(self, x):
@@ -127,7 +126,7 @@ class Decoder(nn.Module):
         # )
 
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(128, 256, 4, stride=2, padding=1),  # (B, 256, H/4, W/4)
+            nn.ConvTranspose2d(64, 256, 4, stride=2, padding=1),  # (B, 256, H/4, W/4)
             nn.ReLU(inplace=True),
             nn.ConvTranspose2d(256, 128, 4, stride=2, padding=1),  # (B, 128, H/2, W/2)
             nn.ReLU(inplace=True),
@@ -140,11 +139,10 @@ class Decoder(nn.Module):
     def forward(self, x):
         return self.decoder(x)
 
-from compressai.entropy_models import EntropyBottleneck
 class Autoencoder(nn.Module):
     def __init__(self):
         super().__init__()
-        self.entropy_bottleneck = EntropyBottleneck(128).to(DEVICE)
+        self.entropy_bottleneck = EntropyBottleneck(64).to(DEVICE)
         self.encoder = Encoder()
         self.decoder = Decoder()
 
@@ -336,7 +334,6 @@ if __name__ == "__main__":
     logging.info(f"Epochs: {NUM_EPOCHS}")
     logging.info(f"Image size: {IMAGE_SIZE}")
     logging.info(f"Device: {DEVICE}")
-
 
     train(train_loader, valid_loader, save_path, usesWandb=False)
 
