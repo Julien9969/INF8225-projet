@@ -10,9 +10,12 @@ import matplotlib.pyplot as plt
 import logging, time, tqdm, sys
 import argparse
 
-# https://interdigitalinc.github.io/CompressAI/_modules/compressai/losses/rate_distortion.html#RateDistortionLoss
-from compressai.losses import RateDistortionLoss
-from compressai.entropy_models import EntropyBottleneck
+# # https://interdigitalinc.github.io/CompressAI/_modules/compressai/losses/rate_distortion.html#RateDistortionLoss
+# from compressai.losses import RateDistortionLoss
+# from compressai.entropy_models import EntropyBottleneck
+
+from compressai_for_windows_users.rate_distortion import RateDistortionLoss
+from compressai_for_windows_users.entropy_models import EntropyBottleneck
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s | %(message)s - %(asctime)s', datefmt='%H:%M:%S')
 
@@ -21,7 +24,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 LR = 0.001
 
 NUM_EPOCHS = 250
-BATCH_SIZE = 128
+BATCH_SIZE = 64
 SAVE_INTER = 50
 
 HIDDEN_DIM = 256
@@ -31,9 +34,9 @@ NUM_CHANNELS = 3
 CONV_FILTERS_1 = 32 
 CONV_FILTERS_2 = 64
 CONV_FILTERS_3 = 128
-CONV_FILTERS_4 = 256 
+CONV_FILTERS_4 = 128 
 
-BOTTLENECK_FILTERS = 64
+BOTTLENECK_FILTERS = 32
 
 transform = transforms.Compose([
     transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
@@ -87,13 +90,13 @@ class Encoder(nn.Module):
         #     nn.ReLU(inplace=True),
         # )
         self.encoder = nn.Sequential(
-            nn.Conv2d(3, 64, 5, stride=2, padding=2),  # (B, 64, H/2, W/2)
-            nn.ReLU(inplace=True),
-            nn.Conv2d(64, 128, 5, stride=2, padding=2),  # (B, 128, H/4, W/4)
-            nn.ReLU(inplace=True),
-            nn.Conv2d(128, 256, 5, stride=2, padding=2),  # (B, 256, H/8, W/8)
-            nn.ReLU(inplace=True),
-            nn.Conv2d(256, 64, 1), 
+            nn.Conv2d(NUM_CHANNELS, CONV_FILTERS_1, 5, stride=2, padding=2), 
+            nn.LeakyReLU(inplace=True),
+            nn.Conv2d(CONV_FILTERS_1, CONV_FILTERS_2, 5, stride=2, padding=2),
+            nn.LeakyReLU(inplace=True),
+            nn.Conv2d(CONV_FILTERS_2, CONV_FILTERS_3, 5, stride=2, padding=2),
+            nn.LeakyReLU(inplace=True),
+            nn.Conv2d(CONV_FILTERS_3, BOTTLENECK_FILTERS, 1), 
         )     
 
     def forward(self, x):
@@ -126,14 +129,14 @@ class Decoder(nn.Module):
         # )
 
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(64, 256, 4, stride=2, padding=1),  # (B, 256, H/4, W/4)
-            nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(256, 128, 4, stride=2, padding=1),  # (B, 128, H/2, W/2)
-            nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(128, 64, 4, stride=2, padding=1),  # (B, 64, H, W)
-            nn.ReLU(inplace=True),
-            nn.Conv2d(64, 3, 3, padding=1),
-            nn.Sigmoid()  # output in [0, 1]
+            nn.ConvTranspose2d(BOTTLENECK_FILTERS, CONV_FILTERS_3, 4, stride=2, padding=1), 
+            nn.LeakyReLU(inplace=True),
+            nn.ConvTranspose2d(CONV_FILTERS_3, CONV_FILTERS_2, 4, stride=2, padding=1),  
+            nn.LeakyReLU(inplace=True),
+            nn.ConvTranspose2d(CONV_FILTERS_2, CONV_FILTERS_1, 4, stride=2, padding=1), 
+            nn.LeakyReLU(inplace=True),
+            nn.Conv2d(CONV_FILTERS_1, NUM_CHANNELS, 3, padding=1),
+            nn.Sigmoid() 
         )
 
     def forward(self, x):
@@ -142,7 +145,7 @@ class Decoder(nn.Module):
 class Autoencoder(nn.Module):
     def __init__(self):
         super().__init__()
-        self.entropy_bottleneck = EntropyBottleneck(64).to(DEVICE)
+        self.entropy_bottleneck = EntropyBottleneck(32).to(DEVICE)
         self.encoder = Encoder()
         self.decoder = Decoder()
 
@@ -252,8 +255,8 @@ def train(train_loader, valid_loader, save_path, usesWandb=False):
 
         logging.info(f"Epoch [{epoch+1}/{NUM_EPOCHS}] - Train Loss: {train_loss:.8f}, Val Loss: {val_loss:.8f}")
         
-        if (epoch + 1) % 50 == 0:
-            show_image(model, valid_loader)
+        # if (epoch + 1) % 50 == 0:
+        #     show_image(model, valid_loader)
         if (epoch + 1) % SAVE_INTER == 0:
             torch.save(model.state_dict(), os.path.join(save_path, os.path.basename(save_path) + f'_{epoch+1}.pth'))
             logging.info(f"Model saved to {os.path.join(save_path, os.path.basename(save_path) + f'_{epoch+1}.pth')}")
