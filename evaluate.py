@@ -12,7 +12,10 @@ from skimage.metrics import structural_similarity as ssim
 from skimage.metrics import peak_signal_noise_ratio as psnr
 from rich.table import Table
 import rich, os
-from compressai.entropy_models import EntropyBottleneck
+# from compressai.entropy_models import EntropyBottleneck
+from compressai_for_windows_users.entropy_models import EntropyBottleneck
+import argparse
+
 
 from AE import Autoencoder, CustomDataset, transform
 from io import BytesIO
