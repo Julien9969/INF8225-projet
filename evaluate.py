@@ -79,7 +79,7 @@ def evaluate(model, dataloader):
     jpeg_PSNR = []
     jpeg_SSIM = []
     jpeg_compression_ratios = []
-    entropy_bottleneck = EntropyBottleneck(64).to(DEVICE).eval()
+    entropy_bottleneck = EntropyBottleneck(32).to(DEVICE).eval()
 
     with torch.no_grad():        
         with tqdm.tqdm(dataloader, desc=f"Calcules métriques", unit="image", position=0, leave=False, ncols=100) as t_loader:
@@ -150,7 +150,16 @@ def visualize_results(original, reconstructed, jpeg, comp_jpeg_size, input_jpeg_
 
 
 if __name__ == "__main__":
-    model_path = sys.argv[1] 
+    
+    argparse = argparse.ArgumentParser(description="Evaluate the Autoencoder model")
+    argparse.add_argument("model_path", type=str, help="Path to the trained model")
+    argparse.add_argument("--show", action="store_true", help="Show the results")
+    argparse.add_argument("--test_save", action="store_true", help="Save the test results")
+    args = argparse.parse_args()
+    SHOW = args.show if args.show else SHOW
+    TEST_SAVE = args.test_save if args.test_save else TEST_SAVE
+    
+    model_path = args.model_path
     model = load_model(model_path)
 
     validate_dir = "dataset/dogs/valid"
