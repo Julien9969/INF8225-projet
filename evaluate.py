@@ -12,12 +12,10 @@ from skimage.metrics import structural_similarity as ssim
 from skimage.metrics import peak_signal_noise_ratio as psnr
 from rich.table import Table
 import rich, os
-# from compressai.entropy_models import EntropyBottleneck
-from compressai_for_windows_users.entropy_models import EntropyBottleneck
 import argparse
 
 
-from AE import Autoencoder, CustomDataset, transform
+from AE import Autoencoder, CustomDataset, transform, BOTTLENECK_FILTERS
 from io import BytesIO
 from PIL import Image
 
@@ -82,14 +80,12 @@ def evaluate(model, dataloader):
     jpeg_PSNR = []
     jpeg_SSIM = []
     jpeg_compression_ratios = []
-    entropy_bottleneck = EntropyBottleneck(32).to(DEVICE).eval()
 
     with torch.no_grad():        
         with tqdm.tqdm(dataloader, desc=f"Calcules métriques", unit="image", position=0, leave=False, ncols=100) as t_loader:
             for inputs, _ in t_loader:
                 inputs = inputs.to(DEVICE)
                 encoded = model.encoder(inputs)
-                encoded, likelihoods = entropy_bottleneck(encoded)
                 decoded = model.decoder(encoded)
 
                 psnr_value, ssim_value = calculate_metrics(inputs[0], decoded[0])

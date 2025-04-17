@@ -10,13 +10,6 @@ import matplotlib.pyplot as plt
 import logging, time, tqdm, sys
 import argparse
 
-# # https://interdigitalinc.github.io/CompressAI/_modules/compressai/losses/rate_distortion.html#RateDistortionLoss
-# from compressai.losses import RateDistortionLoss
-# from compressai.entropy_models import EntropyBottleneck
-
-from compressai_for_windows_users.rate_distortion import RateDistortionLoss
-from compressai_for_windows_users.entropy_models import EntropyBottleneck
-
 logging.basicConfig(level=logging.INFO, format='%(levelname)s | %(message)s - %(asctime)s', datefmt='%H:%M:%S')
 
 IMAGE_SIZE = 128
@@ -42,7 +35,6 @@ transform = transforms.Compose([
     transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
     transforms.ToTensor(),
 ])
-
 
 class CustomDataset(Dataset):
     def __init__(self, root_dir, transform=None):
@@ -145,26 +137,15 @@ class Decoder(nn.Module):
 class Autoencoder(nn.Module):
     def __init__(self):
         super().__init__()
-        self.entropy_bottleneck = EntropyBottleneck(32).to(DEVICE)
         self.encoder = Encoder()
         self.decoder = Decoder()
 
     def forward(self, x):
-        # encoded = self.encoder(x)
-        # # Apply entropy bottleneck (real entropy bottleneck operation)
-        # encoded, likelihoods = self.entropy_bottleneck(encoded)
-        # decoded = self.decoder(encoded)
-
-        # residual = x - decoded
-        # return decoded, residual
-
         encoded = self.encoder(x)
-        # Apply entropy bottleneck (real entropy bottleneck operation)
-        encoded, likelihoods = self.entropy_bottleneck(encoded)
         decoded = self.decoder(encoded)
 
         residual = x - decoded
-        return {"x_hat": decoded, "likelihoods": {"y": likelihoods}}
+        return decoded, residual
 
 
 def autoencoder_loss(x, recon_x, residual):
@@ -186,7 +167,7 @@ def train(train_loader, valid_loader, save_path, usesWandb=False):
     # model.load_state_dict(torch.load(save_path, map_location=DEVICE))
     # NUM_EPOCHS = 50
     optimizer = optim.Adam(model.parameters(), lr=LR)
-    criterion = RateDistortionLoss(lmbda=0.01, metric="mse", return_type="loss")
+    criterion = autoencoder_loss
     # 10 epochs sans amélioration on diminue le learning rate
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=10)
     if usesWandb:
@@ -214,10 +195,8 @@ def train(train_loader, valid_loader, save_path, usesWandb=False):
                 data = data.to(DEVICE)
                 optimizer.zero_grad()
             
-                # recon_batch, residual_batch = model(data)
-                recon_batch = model(data)
-                # loss = autoencoder_loss(data, recon_batch, residual_batch)
-                loss = criterion(recon_batch, data)
+                recon_batch, residual_batch = model(data)
+                loss = criterion(data, recon_batch, residual_batch)
                 
                 loss.backward()
                 optimizer.step()
@@ -243,10 +222,8 @@ def train(train_loader, valid_loader, save_path, usesWandb=False):
         with torch.no_grad():
             for inputs, _ in valid_loader:
                 inputs = inputs.to(DEVICE)
-                # decoded, residual = model(inputs)
-                decoded = model(inputs)
-                loss = criterion(decoded, inputs)
-                # loss = autoencoder_loss(inputs, decoded, residual)
+                decoded, residual = model(inputs)
+                loss = criterion(inputs, decoded, residual)
                 val_loss += loss.item()
 
         val_loss /= len(valid_loader)
@@ -255,8 +232,8 @@ def train(train_loader, valid_loader, save_path, usesWandb=False):
 
         logging.info(f"Epoch [{epoch+1}/{NUM_EPOCHS}] - Train Loss: {train_loss:.8f}, Val Loss: {val_loss:.8f}")
         
-        # if (epoch + 1) % 50 == 0:
-        #     show_image(model, valid_loader)
+        if (epoch + 1) % 50 == 0:
+            show_image(model, valid_loader)
         if (epoch + 1) % SAVE_INTER == 0:
             torch.save(model.state_dict(), os.path.join(save_path, os.path.basename(save_path) + f'_{epoch+1}.pth'))
             logging.info(f"Model saved to {os.path.join(save_path, os.path.basename(save_path) + f'_{epoch+1}.pth')}")
@@ -271,8 +248,7 @@ def show_image(model, valid_loader):
 
     with torch.no_grad():
         data = next(iter(valid_loader))[0].to(DEVICE)
-        decoded = model(data)['x_hat']
-        residual = data - decoded
+        decoded, residual = model(data)
 
         num_images = min(8, data.size(0))
         fig, axs = plt.subplots(3, num_images, figsize=(num_images * 2, 6))
