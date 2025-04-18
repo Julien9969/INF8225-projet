@@ -288,6 +288,7 @@ if __name__ == "__main__":
     parser.add_argument('--batch-size', type=int, default=BATCH_SIZE, help='Batch size for training')
     parser.add_argument('--num-epochs', type=int, default=NUM_EPOCHS, help='Number of epochs for training')
     parser.add_argument('--save-interval', type=int, default=SAVE_INTER, help='Interval for saving the model')
+    parser.add_argument('--bottleneck', type=int, default=BOTTLENECK_FILTERS, help='Bottleneck size')
     args = parser.parse_args()
 
     if not os.path.exists("train_models"):
@@ -304,6 +305,8 @@ if __name__ == "__main__":
         NUM_EPOCHS = args.num_epochs
     if args.save_interval:
         SAVE_INTER = args.save_interval
+    if args.bottleneck:
+        BOTTLENECK_FILTERS = args.bottleneck
     
     start = time.time()
     logging.info("Training started")
@@ -313,6 +316,7 @@ if __name__ == "__main__":
     logging.info(f"Epochs: {NUM_EPOCHS}")
     logging.info(f"Image size: {IMAGE_SIZE}")
     logging.info(f"Device: {DEVICE}")
+    logging.info(f"Bottleneck size: {BOTTLENECK_FILTERS}")
 
     train(train_loader, valid_loader, save_path, usesWandb=False)
 
