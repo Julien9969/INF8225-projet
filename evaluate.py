@@ -110,8 +110,6 @@ def evaluate(model, dataloader):
                 logging.debug(f"PSNR: {psnr_value}, SSIM: {ssim_value}, Compression Ratio: {encoded_size}")
 
                 if TEST_SAVE:
-                    if not os.path.exists("results"):
-                        os.makedirs("results")
                     original_image.save(f"results/original.jpg")
                     comp_jpeg_image.save(f"results/jpeg.jpg")
                     with open("results/encoded", "wb") as f:
@@ -149,6 +147,8 @@ def visualize_results(original, reconstructed, jpeg, comp_jpeg_size, input_jpeg_
 
 
 if __name__ == "__main__":
+    if not os.path.exists("results"):
+        os.makedirs("results")
     
     argparse = argparse.ArgumentParser(description="Evaluate the Autoencoder model")
     argparse.add_argument("model_path", type=str, help="Path to the trained model")
@@ -157,6 +157,8 @@ if __name__ == "__main__":
     args = argparse.parse_args()
     SHOW = args.show if args.show else SHOW
     TEST_SAVE = args.test_save if args.test_save else TEST_SAVE
+
+    print(f"Using {DEVICE}, Bottleneck filters: {BOTTLENECK_FILTERS}, Show: {SHOW}, Test Save: {TEST_SAVE}") 
     
     model_path = args.model_path
     model = load_model(model_path)
@@ -193,3 +195,14 @@ if __name__ == "__main__":
 
     rich.print(table_ae)
     rich.print(table_jpeg)
+
+    with open("results/res.csv", "w") as f:
+        f.write("Metric,Mean,Std,Min,Max\n")
+        f.write(f"PSNR,{np.mean(PSNR):.2f},{np.std(PSNR):.2f},{np.min(PSNR):.2f},{np.max(PSNR):.2f}\n")
+        f.write(f"SSIM,{np.mean(SSIM):.2f},{np.std(SSIM):.2f},{np.min(SSIM):.2f},{np.max(SSIM):.2f}\n")
+        f.write(f"Compression Ratio,{np.mean(compression_ratios):.2f},{np.std(compression_ratios):.2f},{np.min(compression_ratios):.2f},{np.max(compression_ratios):.2f}\n")
+        f.write("\n")
+        f.write("Metric,Mean,Std,Min,Max\n")
+        f.write(f"PSNR,{np.mean(jpeg_PSNR):.2f},{np.std(jpeg_PSNR):.2f},{np.min(jpeg_PSNR):.2f},{np.max(jpeg_PSNR):.2f}\n")
+        f.write(f"SSIM,{np.mean(jpeg_SSIM):.2f},{np.std(jpeg_SSIM):.2f},{np.min(jpeg_SSIM):.2f},{np.max(jpeg_SSIM):.2f}\n")
+        f.write(f"Compression Ratio,{np.mean(jpeg_compression_ratios):.2f},{np.std(jpeg_compression_ratios):.2f},{np.min(jpeg_compression_ratios):.2f},{np.max(jpeg_compression_ratios):.2f}\n")
