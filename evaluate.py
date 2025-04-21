@@ -177,9 +177,9 @@ if __name__ == "__main__":
     table_ae.add_column("Min", justify="center")
     table_ae.add_column("Max", justify="center")
 
-    table_ae.add_row("PSNR", f"{np.mean(PSNR):.2f}", f"{np.std(PSNR):.2f}", f"{np.min(PSNR):.2f}", f"{np.max(PSNR):.2f}")
-    table_ae.add_row("SSIM", f"{np.mean(SSIM):.2f}", f"{np.std(SSIM):.2f}", f"{np.min(SSIM):.2f}", f"{np.max(SSIM):.2f}")
-    table_ae.add_row("Compression Ratio", f"{np.mean(compression_ratios):.2f}", f"{np.std(compression_ratios):.2f}", f"{np.min(compression_ratios):.2f}", f"{np.max(compression_ratios):.2f}")
+    table_ae.add_row("PSNR", f"{np.mean(PSNR):.3f}", f"{np.std(PSNR):.3f}", f"{np.min(PSNR):.3f}", f"{np.max(PSNR):.3f}")
+    table_ae.add_row("SSIM", f"{np.mean(SSIM):.3f}", f"{np.std(SSIM):.3f}", f"{np.min(SSIM):.3f}", f"{np.max(SSIM):.3f}")
+    table_ae.add_row("Compression Ratio", f"{np.mean(compression_ratios):.3f}", f"{np.std(compression_ratios):.3f}", f"{np.min(compression_ratios):.3f}", f"{np.max(compression_ratios):.3f}")
 
     # Table for JPEG Metrics
     table_jpeg = Table(title="JPEG Metrics", show_lines=True)
@@ -189,20 +189,20 @@ if __name__ == "__main__":
     table_jpeg.add_column("Min", justify="center")
     table_jpeg.add_column("Max", justify="center")
 
-    table_jpeg.add_row("PSNR", f"{np.mean(jpeg_PSNR):.2f}", f"{np.std(jpeg_PSNR):.2f}", f"{np.min(jpeg_PSNR):.2f}", f"{np.max(jpeg_PSNR):.2f}")
-    table_jpeg.add_row("SSIM", f"{np.mean(jpeg_SSIM):.2f}", f"{np.std(jpeg_SSIM):.2f}", f"{np.min(jpeg_SSIM):.2f}", f"{np.max(jpeg_SSIM):.2f}")
-    table_jpeg.add_row("Compression Ratio", f"{np.mean(jpeg_compression_ratios):.2f}", f"{np.std(jpeg_compression_ratios):.2f}", f"{np.min(jpeg_compression_ratios):.2f}", f"{np.max(jpeg_compression_ratios):.2f}")
+    table_jpeg.add_row("PSNR", f"{np.mean(jpeg_PSNR):.3f}", f"{np.std(jpeg_PSNR):.3f}", f"{np.min(jpeg_PSNR):.3f}", f"{np.max(jpeg_PSNR):.3f}")
+    table_jpeg.add_row("SSIM", f"{np.mean(jpeg_SSIM):.3f}", f"{np.std(jpeg_SSIM):.3f}", f"{np.min(jpeg_SSIM):.3f}", f"{np.max(jpeg_SSIM):.3f}")
+    table_jpeg.add_row("Compression Ratio", f"{np.mean(jpeg_compression_ratios):.3f}", f"{np.std(jpeg_compression_ratios):.3f}", f"{np.min(jpeg_compression_ratios):.3f}", f"{np.max(jpeg_compression_ratios):.3f}")
 
     rich.print(table_ae)
     rich.print(table_jpeg)
 
     with open("results/res.csv", "w") as f:
         f.write("Metric,Mean,Std,Min,Max\n")
-        f.write(f"PSNR,{np.mean(PSNR):.2f},{np.std(PSNR):.2f},{np.min(PSNR):.2f},{np.max(PSNR):.2f}\n")
-        f.write(f"SSIM,{np.mean(SSIM):.2f},{np.std(SSIM):.2f},{np.min(SSIM):.2f},{np.max(SSIM):.2f}\n")
-        f.write(f"Compression Ratio,{np.mean(compression_ratios):.2f},{np.std(compression_ratios):.2f},{np.min(compression_ratios):.2f},{np.max(compression_ratios):.2f}\n")
+        f.write(f"PSNR,{np.mean(PSNR):.3f},{np.std(PSNR):.3f},{np.min(PSNR):.3f},{np.max(PSNR):.3f}\n")
+        f.write(f"SSIM,{np.mean(SSIM):.3f},{np.std(SSIM):.3f},{np.min(SSIM):.3f},{np.max(SSIM):.3f}\n")
+        f.write(f"Compression Ratio,{np.mean(compression_ratios):.3f},{np.std(compression_ratios):.3f},{np.min(compression_ratios):.3f},{np.max(compression_ratios):.3f}\n")
         f.write("\n")
         f.write("Metric,Mean,Std,Min,Max\n")
-        f.write(f"PSNR,{np.mean(jpeg_PSNR):.2f},{np.std(jpeg_PSNR):.2f},{np.min(jpeg_PSNR):.2f},{np.max(jpeg_PSNR):.2f}\n")
-        f.write(f"SSIM,{np.mean(jpeg_SSIM):.2f},{np.std(jpeg_SSIM):.2f},{np.min(jpeg_SSIM):.2f},{np.max(jpeg_SSIM):.2f}\n")
-        f.write(f"Compression Ratio,{np.mean(jpeg_compression_ratios):.2f},{np.std(jpeg_compression_ratios):.2f},{np.min(jpeg_compression_ratios):.2f},{np.max(jpeg_compression_ratios):.2f}\n")
+        f.write(f"PSNR,{np.mean(jpeg_PSNR):.3f},{np.std(jpeg_PSNR):.3f},{np.min(jpeg_PSNR):.3f},{np.max(jpeg_PSNR):.3f}\n")
+        f.write(f"SSIM,{np.mean(jpeg_SSIM):.3f},{np.std(jpeg_SSIM):.3f},{np.min(jpeg_SSIM):.3f},{np.max(jpeg_SSIM):.3f}\n")
+        f.write(f"Compression Ratio,{np.mean(jpeg_compression_ratios):.3f},{np.std(jpeg_compression_ratios):.3f},{np.min(jpeg_compression_ratios):.3f},{np.max(jpeg_compression_ratios):.3f}\n")
