@@ -11,17 +11,16 @@ import logging
 
 logging.basicConfig(level=logging.INFO, format='%(message)s - %(asctime)s - %(levelname)s')
 
-IMAGE_SIZE = 32
+IMAGE_SIZE = 128
 
 transform = transforms.Compose([
     transforms.Resize((IMAGE_SIZE, IMAGE_SIZE)),
     transforms.ToTensor(),
-    # transforms.Normalize((0.5,), (0.5,))
 ])
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# NUM_EPOCHS = 500
-# BATCH_SIZE = 64
+NUM_EPOCHS = 150
+BATCH_SIZE = 64
 LR = 0.001
 
 NUM_EPOCHS = 150
@@ -35,8 +34,8 @@ LATENT_DIM = 128
 
 # CONV_N_FILTERS_1 = 6 # multiple de 3 idealement?
 # CONV_N_FILTERS_2 = 16 #
-CONV_N_FILTERS_1 = 6 # multiple de 3 idealement?
-CONV_N_FILTERS_2 = 16 #
+CONV_N_FILTERS_1 = 32 # multiple de 3 idealement?
+CONV_N_FILTERS_2 = 128 #
 
 
 print(f"Using device: {DEVICE}")
@@ -83,8 +82,6 @@ class Decoder(nn.Module):
         super().__init__()
         self.fc1 = nn.Linear(latent_dim, hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, (IMAGE_SIZE//2)//2*(IMAGE_SIZE//2)//2 * (CONV_N_FILTERS_2))
-        # self.conv1 = nn.ConvTranspose3d(64-1, 32-2, kernel_size=3, stride=1, padding=1, groups=3)
-        # self.conv2 = nn.ConvTranspose3d(32-2, 1+2, kernel_size=3, stride=1, padding=1, groups=3)
         self.conv1 = nn.ConvTranspose2d(CONV_N_FILTERS_2, CONV_N_FILTERS_1, kernel_size=3, stride=2, padding=1, output_padding=1)
         self.conv2 = nn.ConvTranspose2d(CONV_N_FILTERS_1, 3, kernel_size=3, stride=2, padding=1, output_padding=1)
 
@@ -94,7 +91,6 @@ class Decoder(nn.Module):
         z = z.view(-1, CONV_N_FILTERS_2, ((IMAGE_SIZE//2)//2), ((IMAGE_SIZE//2)//2))
         z = torch.relu(self.conv1(z))
         out = torch.sigmoid(self.conv2(z))
-        # print("===========", out.shape)
         return out
 
 class ConvVAE(nn.Module):
@@ -166,8 +162,7 @@ def vae_loss(recon_x, x, mu, logvar):
     # print("===== recon_x", recon_x.shape)
     # print("===== x", x.shape)
     BCE = F.binary_cross_entropy(recon_x, x.view(-1, 3, IMAGE_SIZE, IMAGE_SIZE), reduction='sum')
-    # KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-    KLD = 0
+    KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
     return BCE + KLD
 
 def measure_compression(model, data_loader):
