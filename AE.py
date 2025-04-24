@@ -7,7 +7,7 @@ from torchvision import transforms
 from PIL import Image
 import os
 import matplotlib.pyplot as plt
-import logging, time, tqdm, sys
+import logging, time, tqdm
 import argparse
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s | %(message)s - %(asctime)s', datefmt='%H:%M:%S')
@@ -27,7 +27,6 @@ NUM_CHANNELS = 3
 CONV_FILTERS_1 = 32 
 CONV_FILTERS_2 = 64
 CONV_FILTERS_3 = 128
-CONV_FILTERS_4 = 128 
 
 BOTTLENECK_FILTERS = 32
 
@@ -50,37 +49,12 @@ class CustomDataset(Dataset):
         image = Image.open(img_path).convert('RGB')
         if self.transform:
             image = self.transform(image)
-        return image, 0  # Dummy label (not used in VAE)
+        return image, 0  # Dummy label 
 
 
 class Encoder(nn.Module):
     def __init__(self):
         super().__init__()
-        # self.encoder = nn.Sequential(
-        #     # convolutional layers
-        #     nn.Conv2d(NUM_CHANNELS, CONV_FILTERS_1, kernel_size=3, padding=1, stride=2), 
-        #     nn.BatchNorm2d(CONV_FILTERS_1),
-        #     nn.ReLU(inplace=True),
-        #     # nn.MaxPool2d(2, 2),
-        #     nn.Conv2d(CONV_FILTERS_1, CONV_FILTERS_2, kernel_size=3, padding=1, stride=2), 
-        #     nn.BatchNorm2d(CONV_FILTERS_2),
-        #     nn.ReLU(inplace=True),
-        #     # nn.MaxPool2d(2, 2),
-            
-        #     nn.Conv2d(CONV_FILTERS_2, CONV_FILTERS_3, kernel_size=3, padding=1, stride=2), 
-        #     nn.BatchNorm2d(CONV_FILTERS_3),
-        #     nn.ReLU(inplace=True),
-        #     # nn.MaxPool2d(2, 2),
-        #     nn.Conv2d(CONV_FILTERS_3, CONV_FILTERS_4, kernel_size=3, padding=1, stride=2),
-        #     nn.BatchNorm2d(CONV_FILTERS_4),
-        #     nn.ReLU(inplace=True),
-        #     # nn.MaxPool2d(2, 2)
-
-        #     # bottleneck
-        #     nn.Conv2d(CONV_FILTERS_4, BOTTLENECK_FILTERS, kernel_size=3, padding=1),
-        #     nn.BatchNorm2d(BOTTLENECK_FILTERS),
-        #     nn.ReLU(inplace=True),
-        # )
         self.encoder = nn.Sequential(
             nn.Conv2d(NUM_CHANNELS, CONV_FILTERS_1, 5, stride=2, padding=2), 
             nn.LeakyReLU(inplace=True),
@@ -98,28 +72,6 @@ class Encoder(nn.Module):
 class Decoder(nn.Module):
     def __init__(self):
         super().__init__()
-        # self.decoder = nn.Sequential(
-        #     # bottleneck
-        #     nn.ConvTranspose2d(BOTTLENECK_FILTERS, CONV_FILTERS_4, kernel_size=3, padding=1),
-        #     nn.BatchNorm2d(CONV_FILTERS_4),
-        #     nn.ReLU(inplace=True),
-
-        #     nn.ConvTranspose2d(CONV_FILTERS_4, CONV_FILTERS_3, kernel_size=3, stride=2, padding=1, output_padding=1), 
-        #     nn.BatchNorm2d(CONV_FILTERS_3),
-        #     nn.ReLU(inplace=True),
-            
-        #     nn.ConvTranspose2d(CONV_FILTERS_3, CONV_FILTERS_2, kernel_size=3, stride=2, padding=1, output_padding=1), 
-        #     nn.BatchNorm2d(CONV_FILTERS_2),
-        #     nn.ReLU(inplace=True),
-            
-        #     nn.ConvTranspose2d(CONV_FILTERS_2, CONV_FILTERS_1, kernel_size=3, stride=2, padding=1, output_padding=1), 
-        #     nn.BatchNorm2d(CONV_FILTERS_1),
-        #     nn.ReLU(inplace=True),
-            
-        #     nn.ConvTranspose2d(CONV_FILTERS_1, NUM_CHANNELS, kernel_size=3, stride=2, padding=1, output_padding=1), 
-        #     nn.Sigmoid()
-        # )
-
         self.decoder = nn.Sequential(
             nn.ConvTranspose2d(BOTTLENECK_FILTERS, CONV_FILTERS_3, 4, stride=2, padding=1), 
             nn.LeakyReLU(inplace=True),
@@ -164,19 +116,15 @@ def measure_compression(model, data_loader):
 
 def train(train_loader, valid_loader, save_path, usesWandb=False):
     model = Autoencoder().to(DEVICE)
-    # model.load_state_dict(torch.load(save_path, map_location=DEVICE))
-    # NUM_EPOCHS = 50
     optimizer = optim.Adam(model.parameters(), lr=LR)
     criterion = autoencoder_loss
-    # 10 epochs sans amélioration on diminue le learning rate
+
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=10)
     if usesWandb:
         import wandb
         wandb.init(
             entity="zevictos-polytechnique-montreal",
-            # Set the wandb project where this run will be logged.
             project="Projet final",
-            # Track hyperparameters and run metadata.
             config={
                 "learning_rate": 0.02,
                 "architecture": "Autoencoder",
@@ -201,7 +149,6 @@ def train(train_loader, valid_loader, save_path, usesWandb=False):
                 loss.backward()
                 optimizer.step()
                 train_loss += loss.item()
-                   # Log batch loss to wandb (optional, can log per epoch instead)
                 if usesWandb:
                     wandb.log({
                         "epoch": epoch,
@@ -209,7 +156,6 @@ def train(train_loader, valid_loader, save_path, usesWandb=False):
                         # "running_train_loss": train_loss / (batch_idx + 1),
                     })
         
-                    # Log average epoch loss
                     avg_train_loss = train_loss / len(train_loader)
                     wandb.log({
                         "epoch": epoch,
@@ -322,5 +268,3 @@ if __name__ == "__main__":
 
     logging.info(f"Training completed in {(time.time() - start)//60:.2f} min")
     
-    # test_image_path = './dataset/dogs/valid/n02085936_1390.JPEG'
-    # test_model(model_path, test_image_path)
