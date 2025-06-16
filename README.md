@@ -1,13 +1,17 @@
-# INF8225-projet
-
-### [Dataset link](https://drive.google.com/file/d/1J1UJrs2-916ttH3kS1FvPidCWk4b2fru/view?usp=sharing)
 
 
+# Compression d’images par auto-encodeurs spécialisés
 
-## Liens
-https://openaccess.thecvf.com/content_cvpr_2018_workshops/papers/w50/Zhou_Variational_Autoencoder_for_CVPR_2018_paper.pdf
-https://github.com/nekhtiari/image-similarity-measures
+Projet final réalisé dans le cadre du cours **INF8225 - Hiver 2025** à Polytechnique Montréal.
 
-https://medium.com/@loijilai_me/learned-image-compression-an-overview-625f3ab709f2
-Rien a voir mais c'est cool
-https://arxiv.org/pdf/2006.09965
+Ce projet explore l’efficacité de modèles d’**auto-encodeurs (AE)** et d’**auto-encodeurs variationnels (VAE)** pour la **compression d’images**, en comparant des modèles généralistes et spécialisés selon les catégories d’images (pizzas, chiens, variées).
+
+## 📁 Fichiers
+
+* 📄 **Rapport PDF complet** : [Autoencodeurs\_specialises\_Rapport\_Final.pdf](./Autoecodeurs%20specialises%20compression%20-%20Rapport%20Final%20INF8225.pdf)
+* 🧠 **Code source principal** : [Autoencodeur](AE.py)
+
+## ✨ Résumé
+
+Nous avons analysé l’impact de la spécialisation des modèles sur la performance de compression, mesurée par PSNR, SSIM et taux de compression, comparée à JPEG.
+ 
